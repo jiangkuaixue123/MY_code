@@ -1,0 +1,142 @@
+#!/bin/bash
+
+export BATCH_SIZE=24
+export ATTN_DP_SIZE=16
+export ATTN_DP_SIZE_LOCAL=16
+export ATTN_DP_START_RANK=0
+export ATTN_DP_HEAD_ADDRESS=0.0.0.0
+export FFN_DP_SIZE=16
+export AFD_HOST=33.215.116.168
+export AFD_PORT=29531
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --batch-size)
+            export BATCH_SIZE="$2"
+            shift 2
+            ;;
+        --attn-dp-size)
+            export ATTN_DP_SIZE="$2"
+            shift 2
+            ;;
+        --attn-dp-size-local)
+            export ATTN_DP_SIZE_LOCAL="$2"
+            shift 2
+            ;;
+        --attn-dp-start-rank)
+            export ATTN_DP_START_RANK="$2"
+            shift 2
+            ;;
+        --attn-dp-head-address)
+            export ATTN_DP_HEAD_ADDRESS="$2"
+            shift 2
+            ;;
+        --ffn-dp-size)
+            export FFN_DP_SIZE="$2"
+            shift 2
+            ;;
+        --afd-host)
+            export AFD_HOST="$2"
+            shift 2
+            ;;
+        --afd-port)
+            export AFD_PORT="$2"
+            shift 2
+            ;;
+        -h|--help)
+            cat <<'EOF'
+Usage: ./run_attn_dsv3.sh [options]
+
+Options:
+  --batch-size VALUE            Default: 24
+  --attn-dp-size VALUE          Default: 16
+  --attn-dp-size-local VALUE    Default: 16
+  --attn-dp-start-rank VALUE    Default: 0
+  --attn-dp-head-address VALUE  Default: 0.0.0.0
+  --ffn-dp-size VALUE           Default: 16
+  --afd-host VALUE              Default: 33.215.116.168
+  --afd-port VALUE              Default: 29531
+  -h, --help                    Show this help message
+EOF
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            exit 1
+            ;;
+    esac
+done
+
+source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/CAM/bin/set_env.bash
+# export ASCEND_RT_VISIBLE_DEVICES=$1
+export VLLM_VERSION=0.13.0
+
+export HCCL_BUFFSIZE=2048
+export VLLM_LOGGING_LEVEL=INFO
+
+export VLLM_ASCEND_ENABLE_MLAPO=1
+export VLLM_ASCEND_BALANCE_SCHEDULING=1
+export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+
+export VLLM_ASCEND_MODEL_RUNNER_PROFILER_ENABLE=1
+export VLLM_ASCEND_MODEL_RUNNER_PROFILER_WAIT=2
+export VLLM_ASCEND_MODEL_RUNNER_PROFILER_WARMUP=1
+export VLLM_ASCEND_MODEL_RUNNER_PROFILER_ACTIVE=10
+export VLLM_ASCEND_MODEL_RUNNER_PROFILER_REPEAT=1
+export VLLM_ASCEND_MODEL_RUNNER_PROFILER_SKIP_FIRST=1500
+export VLLM_ASCEND_MODEL_RUNNER_PROFILER_DIR="/a3_inference/itask/workdir/shared/jcz/profile/attention"
+export VLLM_ASCEND_FFN_PROFILER_ENABLE=1
+export VLLM_ASCEND_FFN_PROFILER_WAIT=2
+export VLLM_ASCEND_FFN_PROFILER_WARMUP=1
+export VLLM_ASCEND_FFN_PROFILER_ACTIVE=20
+export VLLM_ASCEND_FFN_PROFILER_REPEAT=1
+export VLLM_ASCEND_FFN_PROFILER_SKIP_FIRST=1500
+export VLLM_ASCEND_FFN_PROFILER_DIR="/a3_inference/itask/workdir/shared/jcz/profile/ffn"
+
+HEADLESS_FLAG=""
+if [[ "${ATTN_DP_START_RANK}" != "0" ]]; then
+    HEADLESS_FLAG="--headless"
+fi
+
+
+vllm serve "/home/admin/model-csi/models/modelhub_1900013_deepseek-r1-w8a8-vllm-68700071_20250520102322/model" \
+    --max-num-seqs $BATCH_SIZE \
+    --max-model-len 4096 \
+    --max-num-batched-tokens $BATCH_SIZE \
+    --data-parallel-size ${ATTN_DP_SIZE} \
+    --data-parallel-size-local ${ATTN_DP_SIZE_LOCAL} \
+    --data-parallel-address ${ATTN_DP_HEAD_ADDRESS} \
+    --data-parallel-rpc-port 14435 \
+    --data-parallel-start-rank ${ATTN_DP_START_RANK} \
+    ${HEADLESS_FLAG} \
+    --enable-dbo \
+    --dbo-prefill-token-threshold 12 \
+    --dbo-decode-token-threshold 2 \
+    --enable_expert_parallel \
+    --port 8033 \
+    --no-enable-prefix-caching \
+    --quantization ascend \
+    --compilation-config '{
+                "cudagraph_mode": "FULL_DECODE_ONLY",
+                "cudagraph_capture_sizes": ['$BATCH_SIZE']
+        }' \
+    --kv-transfer-config '{
+        "kv_connector": "DecodeBenchConnector",
+        "kv_role": "kv_both",
+        "kv_connector_extra_config": {
+            "fill_mean":0.015,
+            "fill_std": 0.0
+        }
+    }' \
+    --async-scheduling \
+    --afd-config '{
+        "afd_connector":"camp2pconnector",
+        "afd_role": "attention",
+        "afd_host": "'"${AFD_HOST}"'",
+        "afd_port":"'"${AFD_PORT}"'",
+        "num_afd_stages":"2",
+        "compute_gate_on_attention": "False",
+        "afd_extra_config":{
+            "afd_size":"'"${ATTN_DP_SIZE}A${FFN_DP_SIZE}F"'"
+        }
+    }' > attn.log 2>&1 &
