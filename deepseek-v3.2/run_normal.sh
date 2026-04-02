@@ -105,6 +105,15 @@ ${HEADLESS_FLAG} \
 --trust-remote-code \
 --no-enable-prefix-caching \
 --gpu-memory-utilization 0.92 \
+--kv-transfer-config '{
+        "kv_connector": "DecodeBenchConnector",
+        "kv_role": "kv_both",
+        "kv_connector_extra_config": {
+            "fill_mean":0.015,
+            "fill_std": 0.0
+        }
+    }' \
+--async-scheduling \
 --compilation-config '{"cudagraph_mode": "FULL_DECODE_ONLY", "cudagraph_capture_sizes": ['$batch_size']}' \
 --additional-config '{"layer_sharding": ["q_b_proj", "o_proj"]}'
 # --speculative-config '{"num_speculative_tokens": 3, "method": "deepseek_mtp"}'
