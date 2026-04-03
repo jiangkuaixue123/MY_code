@@ -21,6 +21,8 @@ export VLLM_ASCEND_FFN_PROFILER_ACTIVE=20
 export VLLM_ASCEND_FFN_PROFILER_REPEAT=1
 export VLLM_ASCEND_FFN_PROFILER_SKIP_FIRST=1500
 export VLLM_ASCEND_FFN_PROFILER_DIR="/a3_inference/itask/workdir/shared/jcz/profile/ffn"
+export PYTHONPATH=/a3_inference/itask/workdir/hk02335263/jcz_afd_100/code/vllm:/a3_inference/itask/workdir/hk02335263/jcz_afd_100/code/vllm-ascend:$PYTHONPATH
+
 vllm serve "/home/admin/model-csi/models/modelhub_97542_deepseek-v2-lite-36500041_20260318110950/model" \
     --max-num-batched-tokens $BATCH_SIZE \
     --data-parallel-size=2 \
@@ -45,7 +47,6 @@ vllm serve "/home/admin/model-csi/models/modelhub_97542_deepseek-v2-lite-3650004
     --afd-config '{
         "afd_connector":"camp2pconnector",
         "afd_role": "ffn",
-        "afd_host": "33.215.116.168",
         "afd_port":"29531",
         "num_afd_stages":"2",
         "compute_gate_on_attention": "False",

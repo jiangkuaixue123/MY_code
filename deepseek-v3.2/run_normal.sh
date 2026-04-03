@@ -93,11 +93,14 @@ export GLOO_SOCKET_IFNAME=$nic_name
 export TP_SOCKET_IFNAME=$nic_name
 export HCCL_SOCKET_IFNAME=$nic_name
 
+echo "nic_name:$nic_name"
+echo "HCCL_IF_IP:$HCCL_IF_IP"
+
 export HCCL_OP_EXPANSION_MODE="AIV"
 export OMP_PROC_BIND=false
 export OMP_NUM_THREADS=10
 export VLLM_USE_V1=1
-export HCCL_BUFFSIZE=200
+export HCCL_BUFFSIZE=400
 export VLLM_ASCEND_ENABLE_MLAPO=1
 export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
 # export VLLM_ASCEND_ENABLE_FLASHCOMM1=1

@@ -67,7 +67,27 @@ EOF
     esac
 done
 
+if [[ -z "$local_ip" ]]; then
+    local_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+fi
+
+# [Optional] jemalloc
+# jemalloc is for better performance, if `libjemalloc.so` is install on your machine, you can turn it on.
+# export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2:$LD_PRELOAD
+
+source ~/.bashrc
 source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/CAM/bin/set_env.bash
+export PYTHONPATH=/a3_inference/itask/workdir/hk02335263/jcz_afd_100/code/vllm:/a3_inference/itask/workdir/hk02335263/jcz_afd_100/code/vllm-ascend:$PYTHONPATH
+
+nic_name="eth0"
+export HCCL_IF_IP=$local_ip
+export GLOO_SOCKET_IFNAME=$nic_name
+export TP_SOCKET_IFNAME=$nic_name
+export HCCL_SOCKET_IFNAME=$nic_name
+
+echo "nic_name:$nic_name"
+echo "HCCL_IF_IP:$HCCL_IF_IP"
+
 export VLLM_VERSION=0.13.0
 export HCCL_BUFFSIZE=2048
 export VLLM_LOGGING_LEVEL=DEBUG
@@ -96,6 +116,11 @@ if [[ "${ATTN_DP_START_RANK}" != "0" ]]; then
     HEADLESS_FLAG="--headless"
 fi
 
+# --compilation-config '{
+#                 "cudagraph_mode": "FULL_DECODE_ONLY",
+#                 "cudagraph_capture_sizes": ['$BATCH_SIZE']
+#         }' \
+
 vllm serve "/home/admin/model-csi/models/modelhub_35500009_deepseek-v3-2-w8a8-106300046_20260130104046/model" \
     --max-num-seqs $BATCH_SIZE \
     --max-model-len 4096 \
@@ -114,10 +139,7 @@ vllm serve "/home/admin/model-csi/models/modelhub_35500009_deepseek-v3-2-w8a8-10
     --no-enable-prefix-caching \
     --quantization ascend \
     --additional-config '{"layer_sharding": ["q_b_proj", "o_proj"]}' \
-    --compilation-config '{
-                "cudagraph_mode": "FULL_DECODE_ONLY",
-                "cudagraph_capture_sizes": ['$BATCH_SIZE']
-        }' \
+    -cc.cudagraph_mode=NONE \
     --kv-transfer-config '{
         "kv_connector": "DecodeBenchConnector",
         "kv_role": "kv_both",

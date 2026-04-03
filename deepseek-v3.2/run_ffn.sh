@@ -67,8 +67,20 @@ EOF
     esac
 done
 
+if [[ -z "$local_ip" ]]; then
+    local_ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+fi
+
+source ~/.bashrc
 source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/CAM/bin/set_env.bash
-# export ASCEND_RT_VISIBLE_DEVICES=$1
+export PYTHONPATH=/a3_inference/itask/workdir/hk02335263/jcz_afd_100/code/vllm:/a3_inference/itask/workdir/hk02335263/jcz_afd_100/code/vllm-ascend:$PYTHONPATH
+
+nic_name="eth0"
+export HCCL_IF_IP=$local_ip
+export GLOO_SOCKET_IFNAME=$nic_name
+export TP_SOCKET_IFNAME=$nic_name
+export HCCL_SOCKET_IFNAME=$nic_name
+
 export VLLM_VERSION=0.13.0
 export HCCL_BUFFSIZE=2048
 export VLLM_LOGGING_LEVEL=DEBUG

@@ -9,7 +9,7 @@ popd
 
 pushd .
 cd /a3_inference/itask/workdir/hk02335263/jcz_afd_100/code/vllm-ascend
-git config --global --add safe.directory /a3_inference/itask/workdir/hk02335263/jcz_afd_100/code/vllm
+git config --global --add safe.directory /a3_inference/itask/workdir/hk02335263/jcz_afd_100/code/vllm-ascend
 pip install -v -e .
 popd
 
